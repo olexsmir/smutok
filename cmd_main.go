@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 
 	"github.com/urfave/cli/v3"
@@ -50,7 +49,5 @@ func runTui(ctx context.Context, c *cli.Command) error {
 	gr.SetAuthToken(token)
 
 	gs := sync.NewFreshRSS(db, gr)
-	fmt.Println(gs.Sync(ctx, true))
-
-	return nil
+	return gs.Sync(ctx)
 }

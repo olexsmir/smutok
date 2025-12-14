@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tidwall/gjson"
 )
 
 var (
@@ -67,22 +69,29 @@ func (g FreshRSS) GetWriteToken(ctx context.Context) (string, error) {
 type subscriptionList struct {
 	Subscriptions []Subscriptions `json:"subscriptions"`
 }
+
 type Subscriptions struct {
-	Categories struct {
-		ID    string `json:"id"`
-		Label string `json:"label"`
-	} `json:"categories"`
-	ID      string `json:"id"`
-	HTMLURL string `json:"htmlUrl"`
-	IconURL string `json:"iconUrl"`
-	Title   string `json:"title"`
-	URL     string `json:"url"`
+	Categories []SubscriptionCategory `json:"categories"`
+	ID         string                 `json:"id"`
+	HTMLURL    string                 `json:"htmlUrl"`
+	Title      string                 `json:"title"`
+	URL        string                 `json:"url"`
+
+	// IconURL    string                 `json:"iconUrl"`
+}
+
+type SubscriptionCategory struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
 }
 
 func (g FreshRSS) SubscriptionList(ctx context.Context) ([]Subscriptions, error) {
-	var resp subscriptionList
-	err := g.request(ctx, "/reader/api/0/subscription/list?output=json", nil, &resp)
-	return resp.Subscriptions, err
+	params := url.Values{}
+	params.Set("output", "json")
+
+	var jsonResp subscriptionList
+	err := g.request(ctx, "/reader/api/0/subscription/list", params, &jsonResp)
+	return jsonResp.Subscriptions, err
 }
 
 type tagList struct {
@@ -95,76 +104,95 @@ type Tag struct {
 }
 
 func (g FreshRSS) TagList(ctx context.Context) ([]Tag, error) {
+	params := url.Values{}
+	params.Set("output", "json")
+
 	var resp tagList
-	err := g.request(ctx, "/reader/api/0/tag/list?output=json", nil, &resp)
+	err := g.request(ctx, "/reader/api/0/tag/list", params, &resp)
 	return resp.Tags, err
 }
 
-type StreamContents struct {
-	Continuation string `json:"continuation"`
-	ID           string `json:"id"`
-	Items        []struct {
-		Alternate []struct {
-			Href string `json:"href"`
-		} `json:"alternate"`
-		Author    string `json:"author"`
-		Canonical []struct {
-			Href string `json:"href"`
-		} `json:"canonical"`
-		Categories    []string `json:"categories"`
-		CrawlTimeMsec string   `json:"crawlTimeMsec"`
-		ID            string   `json:"id"`
-		Origin        struct {
-			HTMLURL  string `json:"htmlUrl"`
-			StreamID string `json:"streamId"`
-			Title    string `json:"title"`
-		} `json:"origin"`
-		Published int `json:"published"`
-		Summary   struct {
-			Content string `json:"content"`
-		} `json:"summary"`
-		TimestampUsec string `json:"timestampUsec"`
-		Title         string `json:"title"`
-	} `json:"items"`
-	Updated int `json:"updated"`
+type ContentItem struct {
+	ID         string
+	Published  int64
+	Title      string
+	Author     string
+	Canonical  []string
+	Content    string
+	Categories []string
+	Origin     struct {
+		HTMLURL  string
+		StreamID string
+		Title    string
+	}
+
+	// CrawlTimeMsec string `json:"crawlTimeMsec"`
+	// TimestampUsec string `json:"timestampUsec"`
 }
 
-func (g FreshRSS) GetItems(ctx context.Context, excludeTarget string, lastModified, n int) (StreamContents, error) {
+func (g FreshRSS) StreamContents(ctx context.Context, steamID, excludeTarget string, lastModified, n int) ([]ContentItem, error) {
 	params := url.Values{}
 	setOption(&params, "xt", excludeTarget)
 	setOptionInt(&params, "ot", lastModified)
 	setOptionInt(&params, "n", n)
+	params.Set("r", "n")
 
-	var resp StreamContents
-	err := g.request(ctx, "/reader/api/0/stream/contents/user/-/state/com.google/reading-list", params, &resp)
-	return resp, err
+	var jsonResp string
+	if err := g.request(ctx, "/reader/api/0/stream/contents/"+steamID, params, &jsonResp); err != nil {
+		return nil, err
+	}
+
+	items := gjson.GetBytes([]byte(jsonResp), "items").Array()
+	if len(items) == 0 {
+		return []ContentItem{}, nil
+	}
+
+	res := make([]ContentItem, len(items))
+	for i, item := range items {
+		var ci ContentItem
+		ci.ID = item.Get("id").String()
+		ci.Title = item.Get("title").String()
+		ci.Published = item.Get("published").Int()
+		ci.Author = item.Get("author").String()
+		ci.Content = item.Get("summary.content").String()
+		ci.Origin.StreamID = item.Get("origin.streamId").String()
+		ci.Origin.HTMLURL = item.Get("origin.htmlUrl").String()
+		ci.Origin.Title = item.Get("origin.title").String()
+
+		for _, href := range item.Get("canonical.#.href").Array() {
+			if h := href.String(); h != "" {
+				ci.Canonical = append(ci.Canonical, h)
+			}
+		}
+		for _, cat := range item.Get("categories").Array() {
+			ci.Categories = append(ci.Categories, cat.String())
+		}
+
+		res[i] = ci
+	}
+
+	return res, nil
 }
 
-func (g FreshRSS) GetStaredItems(ctx context.Context, n int) (StreamContents, error) {
-	params := url.Values{}
-	setOptionInt(&params, "n", n)
-
-	var resp StreamContents
-	err := g.request(ctx, "/reader/api/0/stream/contents/user/-/state/com.google/starred", params, &resp)
-	return resp, err
-}
-
-type StreamItemsIDs struct {
-	Continuation string `json:"continuation"`
-	ItemRefs     []struct {
-		ID string `json:"id"`
-	} `json:"itemRefs"`
-}
-
-func (g FreshRSS) GetItemsIDs(ctx context.Context, excludeTarget, includeTarget string, n int) (StreamItemsIDs, error) {
+func (g FreshRSS) StreamIDs(ctx context.Context, excludeTarget, includeTarget string, n int) ([]string, error) {
 	params := url.Values{}
 	setOption(&params, "xt", excludeTarget)
 	setOption(&params, "s", includeTarget)
 	setOptionInt(&params, "n", n)
+	params.Set("r", "n")
 
-	var resp StreamItemsIDs
-	err := g.request(ctx, "/reader/api/0/stream/items/ids", params, &resp)
-	return resp, err
+	var jsonResp string
+	if err := g.request(ctx, "/reader/api/0/stream/items/ids", params, &jsonResp); err != nil {
+		return nil, err
+	}
+
+	ids := gjson.Get(jsonResp, "itemRefs.#.id").Array()
+	resp := make([]string, len(ids))
+	for i, v := range ids {
+		resp[i] = v.String()
+	}
+
+	return resp, nil
 }
 
 func (g FreshRSS) SetItemsState(ctx context.Context, token, itemID string, addAction, removeAction string) error {
