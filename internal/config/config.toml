@@ -1,0 +1,9 @@
+[freshrss]
+host = "https://example.com/api/greader.php"
+username = "username"
+password = "password"
+
+# you can set set the password form the env
+#   password = "$env:ENV_VAR_NAME"
+# or read it from file
+#   password = "file:/path/to/file"
