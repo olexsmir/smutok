@@ -6,8 +6,8 @@ import (
 	"errors"
 )
 
-func (s *Sqlite) GetLastSyncTime(ctx context.Context) (int, error) {
-	var lut int
+func (s *Sqlite) GetLastSyncTime(ctx context.Context) (int64, error) {
+	var lut int64
 	err := s.db.QueryRowContext(ctx, "select last_sync from reader where id = 1 and last_sync is not null").Scan(&lut)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, ErrNotFound
@@ -15,7 +15,7 @@ func (s *Sqlite) GetLastSyncTime(ctx context.Context) (int, error) {
 	return lut, err
 }
 
-func (s *Sqlite) SetLastSyncTime(ctx context.Context, lastSync int) error {
+func (s *Sqlite) SetLastSyncTime(ctx context.Context, lastSync int64) error {
 	_, err := s.db.ExecContext(ctx,
 		`insert into reader (id, last_sync) values (1, ?)
 		on conflict(id) do update set last_sync = excluded.last_sync`,

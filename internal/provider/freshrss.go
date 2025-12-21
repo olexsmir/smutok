@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -31,7 +30,7 @@ func NewFreshRSS(host string) *FreshRSS {
 	return &FreshRSS{
 		host: host,
 		client: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: 20 * time.Second,
 		},
 	}
 }
@@ -113,27 +112,27 @@ func (g FreshRSS) TagList(ctx context.Context) ([]Tag, error) {
 }
 
 type ContentItem struct {
-	ID         string
-	Published  int64
-	Title      string
-	Author     string
-	Canonical  []string
-	Content    string
-	Categories []string
-	Origin     struct {
+	ID            string
+	Published     int64
+	Title         string
+	Author        string
+	Canonical     []string
+	Content       string
+	Categories    []string
+	TimestampUsec string
+	Origin        struct {
 		HTMLURL  string
 		StreamID string
 		Title    string
 	}
 
 	// CrawlTimeMsec string `json:"crawlTimeMsec"`
-	// TimestampUsec string `json:"timestampUsec"`
 }
 
-func (g FreshRSS) StreamContents(ctx context.Context, steamID, excludeTarget string, lastModified, n int) ([]ContentItem, error) {
+func (g FreshRSS) StreamContents(ctx context.Context, steamID, excludeTarget string, lastModified int64, n int) ([]ContentItem, error) {
 	params := url.Values{}
 	setOption(&params, "xt", excludeTarget)
-	setOptionInt(&params, "ot", lastModified)
+	setOptionInt64(&params, "ot", lastModified)
 	setOptionInt(&params, "n", n)
 	params.Set("r", "n")
 
@@ -158,6 +157,7 @@ func (g FreshRSS) StreamContents(ctx context.Context, steamID, excludeTarget str
 		ci.Origin.StreamID = item.Get("origin.streamId").String()
 		ci.Origin.HTMLURL = item.Get("origin.htmlUrl").String()
 		ci.Origin.Title = item.Get("origin.title").String()
+		ci.TimestampUsec = item.Get("timestampUsec").String()
 
 		for _, href := range item.Get("canonical.#.href").Array() {
 			if h := href.String(); h != "" {
@@ -174,7 +174,7 @@ func (g FreshRSS) StreamContents(ctx context.Context, steamID, excludeTarget str
 	return res, nil
 }
 
-func (g FreshRSS) StreamIDs(ctx context.Context, excludeTarget, includeTarget string, n int) ([]string, error) {
+func (g FreshRSS) StreamIDs(ctx context.Context, includeTarget, excludeTarget string, n int) ([]string, error) {
 	params := url.Values{}
 	setOption(&params, "xt", excludeTarget)
 	setOption(&params, "s", includeTarget)
@@ -254,12 +254,20 @@ func setOptionInt(b *url.Values, k string, v int) {
 	}
 }
 
+func setOptionInt64(b *url.Values, k string, v int64) {
+	if v != 0 {
+		b.Set(k, strconv.FormatInt(v, 10))
+	}
+}
+
 // request, makes GET request with params passed as url params
 func (g *FreshRSS) request(ctx context.Context, endpoint string, params url.Values, resp any) error {
 	u, err := url.Parse(g.host + endpoint)
 	if err != nil {
 		return err
 	}
+
+	setOptionInt64(&params, "ck", time.Now().UnixMilli())
 	u.RawQuery = params.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -317,7 +325,6 @@ func (g *FreshRSS) handleResponse(req *http.Request, out any) error {
 		}
 		*strPtr = string(body)
 
-		slog.Debug("string response", "content", string(body))
 		return nil
 	}
 
