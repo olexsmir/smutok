@@ -9,10 +9,13 @@ import (
 
 	"github.com/adrg/xdg"
 	"github.com/pelletier/go-toml/v2"
+	"olexsmir.xyz/x/envy"
 )
 
 //go:embed config.toml
 var defaultConfig []byte
+
+var appName = envy.GetOrDefault("APPNAME", "smutok")
 
 var (
 	ErrUnsetPasswordEnv     = errors.New("password env is unset")
@@ -75,7 +78,7 @@ func Init() error {
 func MustGetConfigFilePath() string { return mustGetConfigFile("config.toml") }
 
 func mustGetStateFile(file string) string {
-	stateFile, err := xdg.StateFile("smutok/" + file)
+	stateFile, err := xdg.StateFile(filepath.Join(appName, file))
 	if err != nil {
 		panic(err)
 	}
@@ -83,7 +86,7 @@ func mustGetStateFile(file string) string {
 }
 
 func mustGetConfigFile(file string) string {
-	configFile, err := xdg.ConfigFile("smutok/" + file)
+	configFile, err := xdg.ConfigFile(filepath.Join(appName, file))
 	if err != nil {
 		panic(err)
 	}
