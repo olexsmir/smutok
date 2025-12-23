@@ -1,17 +1,11 @@
 package tui
 
-import (
-	tea "github.com/charmbracelet/bubbletea"
-
-	"olexsmir.xyz/smutok/internal/sync"
-)
+import tea "github.com/charmbracelet/bubbletea"
 
 type Model struct {
 	isQutting bool
 	showErr   bool
 	err       error
-
-	sync sync.Strategy
 }
 
 func NewModel() *Model {

@@ -1,4 +1,4 @@
-package sync
+package freshrss
 
 import (
 	"context"
@@ -7,25 +7,24 @@ import (
 	"strings"
 	"time"
 
-	"olexsmir.xyz/smutok/internal/provider"
 	"olexsmir.xyz/smutok/internal/store"
 )
 
-type FreshRSS struct {
+type Syncer struct {
 	store *store.Sqlite
-	api   *provider.FreshRSS
+	api   *Client
 
 	ot int64
 }
 
-func NewFreshRSS(store *store.Sqlite, api *provider.FreshRSS) *FreshRSS {
-	return &FreshRSS{
+func NewSyncer(api *Client, store *store.Sqlite) *Syncer {
+	return &Syncer{
 		store: store,
 		api:   api,
 	}
 }
 
-func (f *FreshRSS) Sync(ctx context.Context) error {
+func (f *Syncer) Sync(ctx context.Context) error {
 	ot, err := f.getLastSyncTime(ctx)
 	if err != nil {
 		return err
@@ -68,7 +67,7 @@ func (f *FreshRSS) Sync(ctx context.Context) error {
 	return f.store.SetLastSyncTime(ctx, newOt)
 }
 
-func (f *FreshRSS) getLastSyncTime(ctx context.Context) (int64, error) {
+func (f *Syncer) getLastSyncTime(ctx context.Context) (int64, error) {
 	ot, err := f.store.GetLastSyncTime(ctx)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -83,7 +82,7 @@ func (f *FreshRSS) getLastSyncTime(ctx context.Context) (int64, error) {
 	return ot, nil
 }
 
-func (f *FreshRSS) syncTags(ctx context.Context) error {
+func (f *Syncer) syncTags(ctx context.Context) error {
 	slog.Info("syncing tags")
 
 	tags, err := f.api.TagList(ctx)
@@ -94,7 +93,7 @@ func (f *FreshRSS) syncTags(ctx context.Context) error {
 	var errs []error
 	for _, tag := range tags {
 		if strings.HasPrefix(tag.ID, "user/-/state/com.google/") &&
-			!strings.HasSuffix(tag.ID, "/com.google/starred") {
+			!strings.HasSuffix(tag.ID, StateStarred) {
 			continue
 		}
 
@@ -107,7 +106,7 @@ func (f *FreshRSS) syncTags(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (f *FreshRSS) syncSubscriptions(ctx context.Context) error {
+func (f *Syncer) syncSubscriptions(ctx context.Context) error {
 	slog.Info("syncing subscriptions")
 
 	subs, err := f.api.SubscriptionList(ctx)
@@ -151,14 +150,15 @@ func (f *FreshRSS) syncSubscriptions(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (f *FreshRSS) syncUnreadItems(ctx context.Context) error {
+func (f *Syncer) syncUnreadItems(ctx context.Context) error {
 	slog.Info("syncing unread items")
 
-	items, err := f.api.StreamContents(ctx,
-		"user/-/state/com.google/reading-list",
-		"user/-/state/com.google/read",
-		f.ot,
-		1000)
+	items, err := f.api.StreamContents(ctx, StreamContents{
+		StreamID:      StateReadingList,
+		ExcludeTarget: StateRead,
+		LastModified:  f.ot,
+		N:             1000,
+	})
 	if err != nil {
 		return err
 	}
@@ -176,13 +176,14 @@ func (f *FreshRSS) syncUnreadItems(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (f *FreshRSS) syncUnreadItemsStatuses(ctx context.Context) error {
+func (f *Syncer) syncUnreadItemsStatuses(ctx context.Context) error {
 	slog.Info("syncing unread items ids")
 
-	ids, err := f.api.StreamIDs(ctx,
-		"user/-/state/com.google/reading-list",
-		"user/-/state/com.google/read",
-		1000)
+	ids, err := f.api.StreamIDs(ctx, StreamID{
+		IncludeTarget: StateReadingList,
+		ExcludeTarget: StateRead,
+		N:             1000,
+	})
 	if err != nil {
 		return err
 	}
@@ -194,14 +195,14 @@ func (f *FreshRSS) syncUnreadItemsStatuses(ctx context.Context) error {
 	return merr
 }
 
-func (f *FreshRSS) syncStarredItems(ctx context.Context) error {
+func (f *Syncer) syncStarredItems(ctx context.Context) error {
 	slog.Info("sync stared items")
 
-	items, err := f.api.StreamContents(ctx,
-		"user/-/state/com.google/starred",
-		"",
-		f.ot,
-		1000)
+	items, err := f.api.StreamContents(ctx, StreamContents{
+		StreamID:     StateStarred,
+		LastModified: f.ot,
+		N:            1000,
+	})
 	if err != nil {
 		return err
 	}
@@ -219,13 +220,13 @@ func (f *FreshRSS) syncStarredItems(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (f *FreshRSS) syncStarredItemStatuses(ctx context.Context) error {
+func (f *Syncer) syncStarredItemStatuses(ctx context.Context) error {
 	slog.Info("syncing starred items ids")
 
-	ids, err := f.api.StreamIDs(ctx,
-		"user/-/state/com.google/starred",
-		"",
-		1000)
+	ids, err := f.api.StreamIDs(ctx, StreamID{
+		IncludeTarget: StateStarred,
+		N:             1000,
+	})
 	if err != nil {
 		return err
 	}

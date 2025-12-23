@@ -1,4 +1,4 @@
-package provider
+package freshrss
 
 import (
 	"context"
@@ -15,19 +15,25 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+const (
+	StateRead        = "user/-/state/com.google/read"
+	StateReadingList = "user/-/state/com.google/reading-list"
+	StateStarred     = "user/-/state/com.google/starred"
+)
+
 var (
 	ErrInvalidRequest = errors.New("invalid invalid request")
 	ErrUnauthorized   = errors.New("unauthorized")
 )
 
-type FreshRSS struct {
+type Client struct {
 	host      string
 	authToken string
 	client    *http.Client
 }
 
-func NewFreshRSS(host string) *FreshRSS {
-	return &FreshRSS{
+func NewClient(host string) *Client {
+	return &Client{
 		host: host,
 		client: &http.Client{
 			Timeout: 20 * time.Second,
@@ -35,7 +41,7 @@ func NewFreshRSS(host string) *FreshRSS {
 	}
 }
 
-func (g FreshRSS) Login(ctx context.Context, email, password string) (string, error) {
+func (g Client) Login(ctx context.Context, email, password string) (string, error) {
 	body := url.Values{}
 	body.Set("Email", email)
 	body.Set("Passwd", password)
@@ -54,12 +60,12 @@ func (g FreshRSS) Login(ctx context.Context, email, password string) (string, er
 	return "", ErrUnauthorized
 }
 
-func (g *FreshRSS) SetAuthToken(token string) {
+func (g *Client) SetAuthToken(token string) {
 	// todo: validate token
 	g.authToken = token
 }
 
-func (g FreshRSS) GetWriteToken(ctx context.Context) (string, error) {
+func (g Client) GetWriteToken(ctx context.Context) (string, error) {
 	var resp string
 	err := g.request(ctx, "/reader/api/0/token", nil, &resp)
 	return resp, err
@@ -84,7 +90,7 @@ type SubscriptionCategory struct {
 	Label string `json:"label"`
 }
 
-func (g FreshRSS) SubscriptionList(ctx context.Context) ([]Subscriptions, error) {
+func (g Client) SubscriptionList(ctx context.Context) ([]Subscriptions, error) {
 	params := url.Values{}
 	params.Set("output", "json")
 
@@ -102,7 +108,7 @@ type Tag struct {
 	Type string `json:"type,omitempty"`
 }
 
-func (g FreshRSS) TagList(ctx context.Context) ([]Tag, error) {
+func (g Client) TagList(ctx context.Context) ([]Tag, error) {
 	params := url.Values{}
 	params.Set("output", "json")
 
@@ -125,19 +131,24 @@ type ContentItem struct {
 		StreamID string
 		Title    string
 	}
-
-	// CrawlTimeMsec string `json:"crawlTimeMsec"`
 }
 
-func (g FreshRSS) StreamContents(ctx context.Context, steamID, excludeTarget string, lastModified int64, n int) ([]ContentItem, error) {
+type StreamContents struct {
+	StreamID      string
+	ExcludeTarget string
+	LastModified  int64
+	N             int
+}
+
+func (g Client) StreamContents(ctx context.Context, opts StreamContents) ([]ContentItem, error) {
 	params := url.Values{}
-	setOption(&params, "xt", excludeTarget)
-	setOptionInt64(&params, "ot", lastModified)
-	setOptionInt(&params, "n", n)
+	setOption(&params, "xt", opts.ExcludeTarget)
+	setOptionInt64(&params, "ot", opts.LastModified)
+	setOptionInt(&params, "n", opts.N)
 	params.Set("r", "n")
 
 	var jsonResp string
-	if err := g.request(ctx, "/reader/api/0/stream/contents/"+steamID, params, &jsonResp); err != nil {
+	if err := g.request(ctx, "/reader/api/0/stream/contents/"+opts.StreamID, params, &jsonResp); err != nil {
 		return nil, err
 	}
 
@@ -174,11 +185,17 @@ func (g FreshRSS) StreamContents(ctx context.Context, steamID, excludeTarget str
 	return res, nil
 }
 
-func (g FreshRSS) StreamIDs(ctx context.Context, includeTarget, excludeTarget string, n int) ([]string, error) {
+type StreamID struct {
+	IncludeTarget string
+	ExcludeTarget string
+	N             int
+}
+
+func (g Client) StreamIDs(ctx context.Context, opts StreamID) ([]string, error) {
 	params := url.Values{}
-	setOption(&params, "xt", excludeTarget)
-	setOption(&params, "s", includeTarget)
-	setOptionInt(&params, "n", n)
+	setOption(&params, "s", opts.IncludeTarget)
+	setOption(&params, "xt", opts.ExcludeTarget)
+	setOptionInt(&params, "n", opts.N)
 	params.Set("r", "n")
 
 	var jsonResp string
@@ -195,14 +212,22 @@ func (g FreshRSS) StreamIDs(ctx context.Context, includeTarget, excludeTarget st
 	return resp, nil
 }
 
-func (g FreshRSS) SetItemsState(ctx context.Context, token, itemID string, addAction, removeAction string) error {
-	params := url.Values{}
-	params.Set("T", token)
-	params.Set("i", itemID)
-	setOption(&params, "a", addAction)
-	setOption(&params, "r", removeAction)
+type EditTag struct {
+	ItemID      []string
+	TagToAdd    string
+	TagToRemove string
+}
 
-	err := g.postRequest(ctx, "/reader/api/0/edit-tag", params, nil)
+func (g Client) EditTag(ctx context.Context, writeToken string, opts EditTag) error {
+	body := url.Values{}
+	body.Set("T", writeToken)
+	setOption(&body, "a", opts.TagToAdd)
+	setOption(&body, "r", opts.TagToRemove)
+	for _, tag := range opts.ItemID {
+		body.Add("i", tag)
+	}
+
+	err := g.postRequest(ctx, "/reader/api/0/edit-tag", body, nil)
 	return err
 }
 
@@ -226,7 +251,7 @@ type EditSubscription struct {
 	Remove string
 }
 
-func (g FreshRSS) SubscriptionEdit(ctx context.Context, token string, opts EditSubscription) (string, error) {
+func (g Client) SubscriptionEdit(ctx context.Context, token string, opts EditSubscription) (string, error) {
 	// todo: action is required
 
 	body := url.Values{}
@@ -261,7 +286,7 @@ func setOptionInt64(b *url.Values, k string, v int64) {
 }
 
 // request, makes GET request with params passed as url params
-func (g *FreshRSS) request(ctx context.Context, endpoint string, params url.Values, resp any) error {
+func (g *Client) request(ctx context.Context, endpoint string, params url.Values, resp any) error {
 	u, err := url.Parse(g.host + endpoint)
 	if err != nil {
 		return err
@@ -279,7 +304,7 @@ func (g *FreshRSS) request(ctx context.Context, endpoint string, params url.Valu
 }
 
 // postRequest makes POST requests with parameters passed as form.
-func (g *FreshRSS) postRequest(ctx context.Context, endpoint string, body url.Values, resp any) error {
+func (g *Client) postRequest(ctx context.Context, endpoint string, body url.Values, resp any) error {
 	var reqBody io.Reader
 	if body != nil {
 		reqBody = strings.NewReader(body.Encode())
@@ -299,7 +324,7 @@ type apiResponse struct {
 	Error string `json:"error,omitempty"`
 }
 
-func (g *FreshRSS) handleResponse(req *http.Request, out any) error {
+func (g *Client) handleResponse(req *http.Request, out any) error {
 	if g.authToken != "" {
 		req.Header.Set("Authorization", "GoogleLogin auth="+g.authToken)
 	}
