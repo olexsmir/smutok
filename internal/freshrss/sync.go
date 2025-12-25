@@ -33,12 +33,7 @@ func (f *Syncer) Sync(ctx context.Context) error {
 	f.ot = ot
 	newOt := time.Now().Unix()
 
-	// note: sync all articles once if it's initial sync
-
-	// todo: sync pending `mark_read`, /edit-tag takes multiple &i=<id>&i=<ca>
-	// todo: sync pending `mark_unread`
-	// todo: sync pending `star`
-	// todo: sync pending `unstar`
+	// TODO: sync all articles once if it's initial sync
 
 	if err := f.syncTags(ctx); err != nil {
 		return err

@@ -34,8 +34,25 @@ func (s *Sqlite) GetToken(ctx context.Context) (string, error) {
 
 func (s *Sqlite) SetToken(ctx context.Context, token string) error {
 	_, err := s.db.ExecContext(ctx,
-		`insert into reader (id, token) values (1, ?)
+		`insert into reader (id, write_token) values (1, ?)
 		on conflict(id) do update set token = excluded.token`,
+		token)
+	return err
+}
+
+func (s *Sqlite) GetWriteToken(ctx context.Context) (string, error) {
+	var tok string
+	err := s.db.QueryRowContext(ctx, "select write_token from reader where id = 1 and write_token is not null").Scan(&tok)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return tok, err
+}
+
+func (s *Sqlite) SetWriteToken(ctx context.Context, token string) error {
+	_, err := s.db.ExecContext(ctx,
+		`insert into reader (id, write_token) values (1, ?)
+		on conflict(id) do update set write_token = excluded.write_token`,
 		token)
 	return err
 }

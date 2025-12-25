@@ -18,6 +18,7 @@ import (
 const (
 	StateRead        = "user/-/state/com.google/read"
 	StateReadingList = "user/-/state/com.google/reading-list"
+	StateKeptUnread  = "user/-/state/com.google/kept-unread"
 	StateStarred     = "user/-/state/com.google/starred"
 )
 
@@ -67,7 +68,7 @@ func (g *Client) SetAuthToken(token string) {
 
 func (g Client) GetWriteToken(ctx context.Context) (string, error) {
 	var resp string
-	err := g.request(ctx, "/reader/api/0/token", nil, &resp)
+	err := g.request(ctx, "/reader/api/0/token", url.Values{}, &resp)
 	return resp, err
 }
 
@@ -227,7 +228,8 @@ func (g Client) EditTag(ctx context.Context, writeToken string, opts EditTag) er
 		body.Add("i", tag)
 	}
 
-	err := g.postRequest(ctx, "/reader/api/0/edit-tag", body, nil)
+	var resp string
+	err := g.postRequest(ctx, "/reader/api/0/edit-tag", body, &resp)
 	return err
 }
 

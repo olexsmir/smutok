@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"olexsmir.xyz/smutok/internal/config"
@@ -41,7 +42,13 @@ func bootstrap(ctx context.Context) (*app, error) {
 	fr.SetAuthToken(token)
 
 	fs := freshrss.NewSyncer(fr, store)
-	fw := freshrss.NewWorker()
+
+	writeToken, err := getWriteToken(ctx, fr, store)
+	if err != nil {
+		return nil, err
+	}
+
+	fw := freshrss.NewWorker(fr, store, writeToken)
 
 	return &app{
 		cfg:            cfg,
@@ -70,6 +77,30 @@ func getAuthToken(ctx context.Context, fr *freshrss.Client, db *store.Sqlite, cf
 	}
 
 	if serr := db.SetToken(ctx, token); serr != nil {
+		return "", serr
+	}
+
+	return token, nil
+}
+
+func getWriteToken(ctx context.Context, fr *freshrss.Client, db *store.Sqlite) (string, error) {
+	token, err := db.GetWriteToken(ctx)
+	if err == nil {
+		return token, nil
+	}
+
+	if !errors.Is(err, store.ErrNotFound) {
+		return "", err
+	}
+
+	slog.Info("requesting write token")
+
+	token, err = fr.GetWriteToken(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	if serr := db.SetWriteToken(ctx, token); serr != nil {
 		return "", serr
 	}
 

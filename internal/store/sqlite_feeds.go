@@ -33,7 +33,7 @@ func (s *Sqlite) RemoveNonExistentFeeds(ctx context.Context, currentFeedIDs []st
 
 	query := fmt.Sprintf(`--sql
 	DELETE FROM feeds
-	WHERE id NOT IN (VALUES %s)
+	WHERE id NOT IN (%s)
 	`, values)
 
 	args := make([]any, len(currentFeedIDs))

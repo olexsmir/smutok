@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	_ "embed"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"strings"
 
 	"github.com/urfave/cli/v3"
@@ -37,7 +37,22 @@ func main() {
 }
 
 func runTui(ctx context.Context, c *cli.Command) error {
-	return errors.New("there's no tui, i lied")
+	app, err := bootstrap(ctx)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	go func() { app.freshrssWorker.Run(ctx) }()
+
+	quitCh := make(chan os.Signal, 1)
+	signal.Notify(quitCh, os.Interrupt)
+	<-quitCh
+
+	cancel()
+
+	return nil
 }
 
 // sync

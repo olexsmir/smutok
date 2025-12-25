@@ -11,6 +11,10 @@ table "reader" {
     null = true
     type = text
   }
+  column "write_token" {
+    null = true
+    type = text
+  }
   column "last_sync" {
     null = true
     type = date
@@ -208,10 +212,13 @@ table "pending_actions" {
     on_update   = NO_ACTION
     on_delete   = CASCADE
   }
-  index "idx_pending_actions_created" {
+  index "idx_pending_actions_created_at" {
     columns = [column.created_at]
   }
-  index "idx_pending_actions_article" {
+  index "idx_pending_actions_article_id" {
     columns = [column.article_id]
+  }
+  check {
+    expr = "(action IN ('read', 'unread', 'star', 'unstar'))"
   }
 }
