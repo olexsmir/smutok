@@ -1,15 +1,37 @@
 package tui
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	"context"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"olexsmir.xyz/smutok/internal/store"
+)
+
+type Syncer interface {
+	Sync(ctx context.Context) error
+}
 
 type Model struct {
+	ctx context.Context
+
 	isQutting bool
 	showErr   bool
 	err       error
+
+	syncer Syncer
+	store  *store.Sqlite
 }
 
-func NewModel() *Model {
-	return &Model{}
+func NewModel(
+	ctx context.Context,
+	syncer Syncer,
+	store *store.Sqlite,
+) *Model {
+	return &Model{
+		ctx:    ctx,
+		syncer: syncer,
+		store:  store,
+	}
 }
 
 func (m *Model) Init() tea.Cmd {

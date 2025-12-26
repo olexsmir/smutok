@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/signal"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/urfave/cli/v3"
 	"olexsmir.xyz/smutok/internal/config"
+	"olexsmir.xyz/smutok/internal/tui"
 )
 
 //go:embed version
@@ -37,22 +38,15 @@ func main() {
 }
 
 func runTui(ctx context.Context, c *cli.Command) error {
-	app, err := bootstrap(ctx)
+	app, err := bootstrap(ctx, true)
 	if err != nil {
 		return err
 	}
-
-	ctx, cancel := context.WithCancel(ctx)
-
 	go func() { app.freshrssWorker.Run(ctx) }()
 
-	quitCh := make(chan os.Signal, 1)
-	signal.Notify(quitCh, os.Interrupt)
-	<-quitCh
-
-	cancel()
-
-	return nil
+	model := tui.NewModel(ctx, app.freshrssSyncer, app.store)
+	_, err = tea.NewProgram(model).Run()
+	return err
 }
 
 // sync
@@ -65,7 +59,7 @@ var syncFeedsCmd = &cli.Command{
 }
 
 func syncFeeds(ctx context.Context, c *cli.Command) error {
-	app, err := bootstrap(ctx)
+	app, err := bootstrap(ctx, false)
 	if err != nil {
 		return err
 	}

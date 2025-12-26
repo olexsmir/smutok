@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
+	"os"
 
 	"olexsmir.xyz/smutok/internal/config"
 	"olexsmir.xyz/smutok/internal/freshrss"
@@ -19,10 +19,16 @@ type app struct {
 	freshrssWorker *freshrss.Worker
 }
 
-func bootstrap(ctx context.Context) (*app, error) {
+func bootstrap(ctx context.Context, outputToFile bool) (*app, error) {
 	cfg, err := config.New()
 	if err != nil {
 		return nil, err
+	}
+
+	if outputToFile {
+		if lerr := setupLogger(cfg); lerr != nil {
+			return nil, lerr
+		}
 	}
 
 	store, err := store.NewSQLite(cfg.DBPath)
@@ -105,4 +111,14 @@ func getWriteToken(ctx context.Context, fr *freshrss.Client, db *store.Sqlite) (
 	}
 
 	return token, nil
+}
+
+func setupLogger(cfg *config.Config) error {
+	file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
+	if err != nil {
+		return err
+	}
+	logger := slog.New(slog.NewTextHandler(file, nil))
+	slog.SetDefault(logger)
+	return nil
 }
