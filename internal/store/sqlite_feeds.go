@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"fmt"
-	"strings"
 )
 
 func (s *Sqlite) UpsertSubscription(ctx context.Context, id, title, url, htmlURL string) error {
@@ -23,23 +22,11 @@ func (s *Sqlite) LinkFeedWithFolder(ctx context.Context, feedID, folderID string
 }
 
 func (s *Sqlite) RemoveNonExistentFeeds(ctx context.Context, currentFeedIDs []string) error {
-	if len(currentFeedIDs) == 0 {
-		_, err := s.db.ExecContext(ctx, "delete from feeds")
-		return err
-	}
-
-	values := strings.Repeat("(?),", len(currentFeedIDs))
-	values = values[:len(values)-1] // trim trailing comma
-
+	placeholders, args := buildPlaceholdersAndArgs(currentFeedIDs)
 	query := fmt.Sprintf(`--sql
 	DELETE FROM feeds
 	WHERE id NOT IN (%s)
-	`, values)
-
-	args := make([]any, len(currentFeedIDs))
-	for i, v := range currentFeedIDs {
-		args[i] = v
-	}
+	`, placeholders)
 
 	_, err := s.db.ExecContext(ctx, query, args...)
 	return err

@@ -34,7 +34,6 @@ type Client struct {
 }
 
 func NewClient(host string) *Client {
-	// todo: validate host url
 	return &Client{
 		host: host,
 		client: &http.Client{
@@ -62,10 +61,7 @@ func (g Client) Login(ctx context.Context, email, password string) (string, erro
 	return "", ErrUnauthorized
 }
 
-func (g *Client) SetAuthToken(token string) {
-	// todo: validate token
-	g.authToken = token
-}
+func (g *Client) SetAuthToken(token string) { g.authToken = token }
 
 func (g Client) GetWriteToken(ctx context.Context) (string, error) {
 	var resp string
@@ -255,7 +251,9 @@ type EditSubscription struct {
 }
 
 func (g Client) SubscriptionEdit(ctx context.Context, token string, opts EditSubscription) (string, error) {
-	// todo: action is required
+	if opts.Action == "" {
+		return "", ErrInvalidRequest
+	}
 
 	body := url.Values{}
 	body.Set("T", token)

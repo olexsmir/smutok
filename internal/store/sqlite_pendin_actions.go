@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"fmt"
-	"strings"
 )
 
 type Action int
@@ -30,27 +29,22 @@ func (a Action) String() string {
 	}
 }
 
+var changeArticleStatusQuery = map[Action]string{
+	Read:   `update article_statuses set is_read = 1 where article_id = ?`,
+	Unread: `update article_statuses set is_read = 0 where article_id = ?`,
+	Star:   `update article_statuses set is_starred = 1 where article_id = ?`,
+	Unstar: `update article_statuses set is_starred = 0 where article_id = ?`,
+}
+
 func (s *Sqlite) ChangeArticleStatus(ctx context.Context, articleID string, action Action) error {
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
 	// update article status
-	var query string
-	switch action {
-	case Read:
-		query = `update article_statuses set is_read = 1 where article_id = ?`
-	case Unread:
-		query = `update article_statuses set is_read = 0 where article_id = ?`
-	case Star:
-		query = `update article_statuses set is_starred = 1 where article_id = ?`
-	case Unstar:
-		query = `update article_statuses set is_starred = 0 where article_id = ?`
-	}
-
-	e, err := tx.ExecContext(ctx, query, articleID)
+	e, err := tx.ExecContext(ctx, changeArticleStatusQuery[action], articleID)
 	if err != nil {
 		return err
 	}
@@ -97,16 +91,12 @@ func (s *Sqlite) GetPendingActions(ctx context.Context, action Action) ([]string
 	return res, nil
 }
 
-func (s *Sqlite) DeletePendingActions(ctx context.Context, action Action, articleIDs []string) error {
-	placeholders := strings.Repeat("(?),", len(articleIDs))
-	placeholders = placeholders[:len(placeholders)-1]
-
-	args := make([]any, len(articleIDs)+1)
-	args[0] = action.String()
-	for i, v := range articleIDs {
-		args[i+1] = v
-	}
-
+func (s *Sqlite) DeletePendingActions(
+	ctx context.Context,
+	action Action,
+	articleIDs []string,
+) error {
+	placeholders, args := buildPlaceholdersAndArgs(articleIDs, action.String())
 	query := fmt.Sprintf(`--sql
 	delete from pending_actions
 	where action = ?

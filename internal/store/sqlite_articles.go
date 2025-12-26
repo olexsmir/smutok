@@ -6,8 +6,12 @@ import (
 	"strings"
 )
 
-func (s *Sqlite) UpsertArticle(ctx context.Context, timestampUsec, feedID, title, content, author, href string, publishedAt int) error {
-	tx, err := s.db.Begin()
+func (s *Sqlite) UpsertArticle(
+	ctx context.Context,
+	timestampUsec, feedID, title, content, author, href string,
+	publishedAt int,
+) error {
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -26,96 +30,41 @@ func (s *Sqlite) UpsertArticle(ctx context.Context, timestampUsec, feedID, title
 	return tx.Commit()
 }
 
-// can be done like this?
-// --sql
-// update article_statuses
-// set is_starred = case
-// 	when article_id in (%s) then 1
-// 	else 0
-// end
-
 func (s *Sqlite) SyncReadStatus(ctx context.Context, ids []string) error {
-	if len(ids) == 0 {
-		_, err := s.db.ExecContext(ctx, "update article_statuses set is_read = 1")
-		return err
-	}
-
-	values := strings.Repeat("(?),", len(ids))
-	values = values[:len(values)-1]
-
-	args := make([]any, len(ids))
-	for i, v := range ids {
-		args[i] = v
-	}
-
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	// make read those that are not in list
-	readQuery := fmt.Sprintf(`--sql
+	placeholders, args := buildPlaceholdersAndArgs(ids)
+	query := fmt.Sprintf(`--sql
 	update article_statuses
-	set is_read = true
-	where article_id not in (%s)`, values)
+	set is_read = case when article_id in (%s)
+		then false
+		else true
+	end`, placeholders)
 
-	if _, err = tx.ExecContext(ctx, readQuery, args...); err != nil {
-		return err
-	}
-
-	// make unread those that are in list
-	unreadQuery := fmt.Sprintf(`--sql
-	update article_statuses
-	set is_read = false
-	where article_id in (%s)`, values)
-
-	if _, err = tx.ExecContext(ctx, unreadQuery, args...); err != nil {
-		return err
-	}
-
-	return tx.Commit()
+	_, err := s.db.ExecContext(ctx, query, args...)
+	return err
 }
 
 func (s *Sqlite) SyncStarredStatus(ctx context.Context, ids []string) error {
-	if len(ids) == 0 {
-		_, err := s.db.ExecContext(ctx, "update article_statuses set is_starred = 0")
-		return err
-	}
-
-	values := strings.Repeat("(?),", len(ids))
-	values = values[:len(values)-1]
-
-	args := make([]any, len(ids))
-	for i, v := range ids {
-		args[i] = v
-	}
-
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	// make read those that are not in list
-	readQuery := fmt.Sprintf(`--sql
+	placeholders, args := buildPlaceholdersAndArgs(ids)
+	query := fmt.Sprintf(`--sql
 	update article_statuses
-	set is_starred = false
-	where article_id not in (%s)`, values)
+	set is_starred = case when article_id in (%s)
+		then true
+		else false
+	end`, placeholders)
 
-	if _, err = tx.ExecContext(ctx, readQuery, args...); err != nil {
-		return err
+	_, err := s.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+func buildPlaceholdersAndArgs(in []string, prefixArgs ...any) (placeholders string, args []any) {
+	placeholders = strings.Repeat("?,", len(in))
+	placeholders = placeholders[:len(placeholders)-1] // trim trailing comma
+
+	args = make([]any, len(prefixArgs)+len(in))
+	copy(args, prefixArgs)
+	for i, v := range in {
+		args[len(prefixArgs)+i] = v
 	}
 
-	// make unread those that are in list
-	unreadQuery := fmt.Sprintf(`--sql
-	update article_statuses
-	set is_starred = true
-	where article_id in (%s)`, values)
-
-	if _, err = tx.ExecContext(ctx, unreadQuery, args...); err != nil {
-		return err
-	}
-
-	return tx.Commit()
+	return placeholders, args
 }

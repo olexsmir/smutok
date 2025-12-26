@@ -51,9 +51,7 @@ func New() (*Config, error) {
 		return nil, cerr
 	}
 
-	passwd, err := parsePassword(
-		config.FreshRSS.Password,
-		filepath.Dir(configPath))
+	passwd, err := parsePassword(config.FreshRSS.Password, filepath.Dir(configPath))
 	if err != nil {
 		return nil, err
 	}

@@ -53,7 +53,7 @@ func (s *Sqlite) Migrate(ctx context.Context) error {
 		return err
 	}
 
-	slog.Info("running migration")
+	slog.Debug("running migration")
 	if merr := driver.ApplyChanges(ctx, changes, []amigrate.PlanOption{}...); merr != nil {
 		return merr
 	}
