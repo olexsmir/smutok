@@ -23,7 +23,7 @@ const (
 )
 
 var (
-	ErrInvalidRequest = errors.New("invalid invalid request")
+	ErrInvalidRequest = errors.New("invalid request")
 	ErrUnauthorized   = errors.New("unauthorized")
 )
 
@@ -34,6 +34,7 @@ type Client struct {
 }
 
 func NewClient(host string) *Client {
+	// todo: validate host url
 	return &Client{
 		host: host,
 		client: &http.Client{
