@@ -78,6 +78,9 @@ func initConfig(ctx context.Context, c *cli.Command) error {
 	if err := config.Init(); err != nil {
 		return fmt.Errorf("failed to init config: %w", err)
 	}
-	slog.Info("Config was initialized, enter your credentials", "file", config.MustGetConfigFilePath())
+	slog.Info(
+		"Config was initialized, enter your credentials",
+		"file", config.MustGetConfigFilePath(),
+	)
 	return nil
 }

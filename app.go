@@ -25,10 +25,8 @@ func bootstrap(ctx context.Context, outputToFile bool) (*app, error) {
 		return nil, err
 	}
 
-	if outputToFile {
-		if lerr := setupLogger(cfg); lerr != nil {
-			return nil, lerr
-		}
+	if lerr := setupLogger(cfg, outputToFile); lerr != nil {
+		return nil, lerr
 	}
 
 	store, err := store.NewSQLite(cfg.DBPath)
@@ -65,7 +63,12 @@ func bootstrap(ctx context.Context, outputToFile bool) (*app, error) {
 	}, nil
 }
 
-func getAuthToken(ctx context.Context, fr *freshrss.Client, db *store.Sqlite, cfg *config.Config) (string, error) {
+func getAuthToken(
+	ctx context.Context,
+	fr *freshrss.Client,
+	db *store.Sqlite,
+	cfg *config.Config,
+) (string, error) {
 	token, err := db.GetToken(ctx)
 	if err == nil {
 		return token, nil
@@ -113,12 +116,34 @@ func getWriteToken(ctx context.Context, fr *freshrss.Client, db *store.Sqlite) (
 	return token, nil
 }
 
-func setupLogger(cfg *config.Config) error {
-	file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
-	if err != nil {
-		return err
+var (
+	ErrUnknownLevel = errors.New("unknown log level")
+	loggerLevels    = map[string]slog.Level{
+		"info":  slog.LevelInfo,
+		"debug": slog.LevelDebug,
+		"error": slog.LevelError,
+		"warn":  slog.LevelWarn,
 	}
-	logger := slog.New(slog.NewTextHandler(file, nil))
+)
+
+func setupLogger(cfg *config.Config, outputToFile bool) error {
+	out := os.Stdout
+	if outputToFile {
+		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
+		if err != nil {
+			return err
+		}
+		out = file
+	}
+
+	logLevel, ok := loggerLevels[cfg.LogLevel]
+	if !ok {
+		return ErrUnknownLevel
+	}
+
+	logger := slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{
+		Level: logLevel,
+	}))
 	slog.SetDefault(logger)
 	return nil
 }

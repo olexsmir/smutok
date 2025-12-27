@@ -1,3 +1,5 @@
+log_level = "info" # or "debug", "error", "warn"
+
 [freshrss]
 host = "https://example.com/api/greader.php"
 username = "username"
