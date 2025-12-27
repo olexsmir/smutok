@@ -67,7 +67,7 @@ func (s *Sqlite) GetPendingActions(ctx context.Context, action Action) ([]string
 	from pending_actions
 	where action = ?
 	order by created_at desc
-	limit 10`
+	limit 20`
 
 	rows, err := s.db.QueryContext(ctx, query, action.String())
 	if err != nil {

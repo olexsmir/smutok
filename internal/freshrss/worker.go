@@ -25,7 +25,6 @@ func NewWorker(api *Client, store *store.Sqlite, writeToken string) *Worker {
 }
 
 func (w *Worker) Run(ctx context.Context) {
-	// TODO: get tick time from config ???
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -34,7 +33,7 @@ func (w *Worker) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		default:
 			if !w.isNetworkAvailable(ctx) {
 				slog.Info("worker: no internet connection")
 				continue
@@ -60,7 +59,9 @@ func (w *Worker) Run(ctx context.Context) {
 					slog.Error("worker: unread", "err", err)
 				}
 			})
+
 			wg.Wait()
+			<-ticker.C
 		}
 	}
 }
@@ -97,6 +98,7 @@ func (w *Worker) handle(ctx context.Context, action store.Action, addState, rmSt
 	}
 
 	if len(articleIDs) == 0 {
+		slog.Debug("worker: no pending actions", "action", action)
 		return nil
 	}
 

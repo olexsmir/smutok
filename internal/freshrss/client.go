@@ -217,6 +217,10 @@ type EditTag struct {
 }
 
 func (g Client) EditTag(ctx context.Context, writeToken string, opts EditTag) error {
+	if len(opts.ItemID) == 0 {
+		return ErrInvalidRequest
+	}
+
 	body := url.Values{}
 	body.Set("T", writeToken)
 	setOption(&body, "a", opts.TagToAdd)
@@ -250,7 +254,11 @@ type EditSubscription struct {
 	Remove string
 }
 
-func (g Client) SubscriptionEdit(ctx context.Context, token string, opts EditSubscription) (string, error) {
+func (g Client) SubscriptionEdit(
+	ctx context.Context,
+	token string,
+	opts EditSubscription,
+) (string, error) {
 	if opts.Action == "" {
 		return "", ErrInvalidRequest
 	}
@@ -305,7 +313,12 @@ func (g *Client) request(ctx context.Context, endpoint string, params url.Values
 }
 
 // postRequest makes POST requests with parameters passed as form.
-func (g *Client) postRequest(ctx context.Context, endpoint string, body url.Values, resp any) error {
+func (g *Client) postRequest(
+	ctx context.Context,
+	endpoint string,
+	body url.Values,
+	resp any,
+) error {
 	var reqBody io.Reader
 	if body != nil {
 		reqBody = strings.NewReader(body.Encode())
