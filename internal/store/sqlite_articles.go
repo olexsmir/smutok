@@ -56,6 +56,51 @@ func (s *Sqlite) SyncStarredStatus(ctx context.Context, ids []string) error {
 	return err
 }
 
+type Article struct {
+	ID          string
+	Title       string
+	Href        string
+	Content     string
+	Author      string
+	IsRead      bool
+	IsStarred   bool
+	FeedID      string
+	FeedTitle   string
+	PublishedAt int64
+}
+
+func (s *Sqlite) GetArticles(ctx context.Context) ([]Article, error) {
+	query := `--sql
+	select a.id, a.title, a.href, a.content, a.author, s.is_read, s.is_starred, a.feed_id, f.title feed_name, a.published_at
+	from articles a
+	join article_statuses s on a.id = s.article_id
+	join feeds f on f.id = a.feed_id
+	where s.is_read = false
+	order by a.published_at desc`
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var res []Article
+	for rows.Next() {
+		var a Article
+		if serr := rows.Scan(&a.ID, &a.Title, &a.Href, &a.Content, &a.Author, &a.IsRead, &a.IsStarred, &a.FeedID, &a.FeedTitle, &a.PublishedAt); serr != nil {
+			return res, serr
+		}
+
+		res = append(res, a)
+	}
+
+	if err = rows.Err(); err != nil {
+		return res, err
+	}
+
+	return res, nil
+}
+
 func buildPlaceholdersAndArgs(in []string, prefixArgs ...any) (placeholders string, args []any) {
 	placeholders = strings.Repeat("?,", len(in))
 	placeholders = placeholders[:len(placeholders)-1] // trim trailing comma
