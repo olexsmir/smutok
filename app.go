@@ -52,7 +52,7 @@ func bootstrap(ctx context.Context, outputToFile bool) (*app, error) {
 		return nil, err
 	}
 
-	fw := freshrss.NewWorker(fr, store, writeToken)
+	fw := freshrss.NewWorker(fr, store, writeToken, cfg.FreshRSS.Host)
 
 	return &app{
 		cfg:            cfg,

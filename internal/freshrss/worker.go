@@ -3,6 +3,8 @@ package freshrss
 import (
 	"context"
 	"log/slog"
+	"net"
+	"net/url"
 	"sync"
 	"time"
 
@@ -13,14 +15,16 @@ type Worker struct {
 	api   *Client
 	store *store.Sqlite
 
+	apiServer  string
 	writeToken string
 }
 
-func NewWorker(api *Client, store *store.Sqlite, writeToken string) *Worker {
+func NewWorker(api *Client, store *store.Sqlite, writeToken, apiServer string) *Worker {
 	return &Worker{
 		api:        api,
 		store:      store,
 		writeToken: writeToken,
+		apiServer:  apiServer,
 	}
 }
 
@@ -34,7 +38,7 @@ func (w *Worker) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			if !w.isNetworkAvailable(ctx) {
+			if !w.isNetworkAvailable() {
 				slog.Info("worker: no internet connection")
 				continue
 			}
@@ -66,9 +70,15 @@ func (w *Worker) Run(ctx context.Context) {
 	}
 }
 
-// TODO: implement me
-func (Worker) isNetworkAvailable(_ context.Context) bool {
-	return true
+func (w *Worker) isNetworkAvailable() bool {
+	u, err := url.Parse(w.apiServer)
+	if err != nil {
+		slog.Error("invalid api url", "url", w.apiServer, "err", err)
+		return false
+	}
+
+	_, err = net.LookupHost(u.Host)
+	return err == nil
 }
 
 func (w *Worker) pendingReads(ctx context.Context) error {
