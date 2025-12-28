@@ -120,15 +120,11 @@ type ContentItem struct {
 	Published     int64
 	Title         string
 	Author        string
-	Canonical     []string
+	Href          string
 	Content       string
 	Categories    []string
 	TimestampUsec string
-	Origin        struct {
-		HTMLURL  string
-		StreamID string
-		Title    string
-	}
+	FeedID        string
 }
 
 type StreamContents struct {
@@ -161,18 +157,12 @@ func (g Client) StreamContents(ctx context.Context, opts StreamContents) ([]Cont
 		ci.ID = item.Get("id").String()
 		ci.Title = item.Get("title").String()
 		ci.Published = item.Get("published").Int()
-		ci.Author = item.Get("author").String()
+		ci.Author = item.Get("origin.title").String()
 		ci.Content = item.Get("summary.content").String()
-		ci.Origin.StreamID = item.Get("origin.streamId").String()
-		ci.Origin.HTMLURL = item.Get("origin.htmlUrl").String()
-		ci.Origin.Title = item.Get("origin.title").String()
+		ci.Href = item.Get("alternate|0.href").String()
+		ci.FeedID = item.Get("origin.streamId").String()
 		ci.TimestampUsec = item.Get("timestampUsec").String()
 
-		for _, href := range item.Get("canonical.#.href").Array() {
-			if h := href.String(); h != "" {
-				ci.Canonical = append(ci.Canonical, h)
-			}
-		}
 		for _, cat := range item.Get("categories").Array() {
 			ci.Categories = append(ci.Categories, cat.String())
 		}

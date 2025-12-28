@@ -162,7 +162,7 @@ func (f *Syncer) syncUnreadItems(ctx context.Context) error {
 
 	var errs []error
 	for _, item := range items {
-		if err := f.store.UpsertArticle(ctx, item.TimestampUsec, item.Origin.StreamID, item.Title, item.Content, item.Author, item.Origin.HTMLURL, int(item.Published)); err != nil {
+		if err := f.store.UpsertArticle(ctx, item.TimestampUsec, item.FeedID, item.Title, item.Content, item.Author, item.Href, int(item.Published)); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -206,7 +206,7 @@ func (f *Syncer) syncStarredItems(ctx context.Context) error {
 
 	var errs []error
 	for _, item := range items {
-		if err := f.store.UpsertArticle(ctx, item.TimestampUsec, item.Origin.StreamID, item.Title, item.Content, item.Author, item.Origin.HTMLURL, int(item.Published)); err != nil {
+		if err := f.store.UpsertArticle(ctx, item.TimestampUsec, item.FeedID, item.Title, item.Content, item.Author, item.Href, int(item.Published)); err != nil {
 			errs = append(errs, err)
 		}
 	}
