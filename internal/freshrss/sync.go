@@ -149,10 +149,9 @@ func (f *Syncer) syncUnreadItems(ctx context.Context) error {
 	slog.Info("syncing unread items")
 
 	items, err := f.api.StreamContents(ctx, StreamContents{
-		StreamID:      StateReadingList,
-		ExcludeTarget: StateRead,
-		LastModified:  f.ot,
-		N:             1000,
+		StreamID:     StateReadingList,
+		LastModified: f.ot,
+		N:            1000,
 	})
 	if err != nil {
 		return err
