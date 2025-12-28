@@ -56,6 +56,14 @@ func (s *Sqlite) SyncStarredStatus(ctx context.Context, ids []string) error {
 	return err
 }
 
+type ArticleKind int
+
+const (
+	ArticleStarred ArticleKind = iota
+	ArticleUnread
+	ArticleAll
+)
+
 type Article struct {
 	ID          string
 	Title       string
@@ -69,14 +77,20 @@ type Article struct {
 	PublishedAt int64
 }
 
-func (s *Sqlite) GetArticles(ctx context.Context) ([]Article, error) {
-	query := `--sql
+var getArticlesWhereClause = map[ArticleKind]string{
+	ArticleAll:     "",
+	ArticleStarred: "where s.is_starred = true",
+	ArticleUnread:  "where s.is_read = false",
+}
+
+func (s *Sqlite) GetArticles(ctx context.Context, kind ArticleKind) ([]Article, error) {
+	query := fmt.Sprintf(`--sql
 	select a.id, a.title, a.href, a.content, a.author, s.is_read, s.is_starred, a.feed_id, f.title feed_name, a.published_at
 	from articles a
 	join article_statuses s on a.id = s.article_id
 	join feeds f on f.id = a.feed_id
-	where s.is_read = false
-	order by a.published_at desc`
+	%s
+	order by a.published_at desc`, getArticlesWhereClause[kind])
 
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {

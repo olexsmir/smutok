@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -67,7 +66,7 @@ func NewModel(
 func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		tea.SetWindowTitle("smutok"),
-		m.fetchArticles(),
+		m.fetchArticles(store.ArticleAll),
 	)
 }
 
@@ -81,30 +80,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		m.table.SetHeight(msg.Height)
-		m.table.SetWidth(msg.Width)
+		m.table.SetWidth(msg.Width - 2)
 		m.viewport.Height = msg.Height
 		m.viewport.Width = msg.Width
 		return m, nil
 
 	case fetchedArticles:
 		m.articles = msg
-
-		columns := []table.Column{
-			// {Title: "read", Width: 4},
-			// {Title: "stared", Width: 6},
-			{Title: "author", Width: 14},
-			{Title: "title", Width: m.table.Width() - 14},
-		}
-
-		rows := make([]table.Row, len(msg))
-		for i, article := range msg {
-			rows[i] = table.Row{article.Author, article.Title}
-		}
-
-		m.table.SetColumns(columns)
-		m.table.SetRows(rows)
-
-		slog.Debug("got articles")
+		m.setupTableWithArticles()
 		return m, nil
 
 	case tea.KeyMsg:
