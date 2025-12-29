@@ -1,4 +1,4 @@
-log_level = "info" # or "debug", "error", "warn"
+debug = false
 
 [freshrss]
 host = "https://example.com/api/greader.php"

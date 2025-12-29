@@ -116,15 +116,7 @@ func getWriteToken(ctx context.Context, fr *freshrss.Client, db *store.Sqlite) (
 	return token, nil
 }
 
-var (
-	ErrUnknownLevel = errors.New("unknown log level")
-	loggerLevels    = map[string]slog.Level{
-		"info":  slog.LevelInfo,
-		"debug": slog.LevelDebug,
-		"error": slog.LevelError,
-		"warn":  slog.LevelWarn,
-	}
-)
+var ErrUnknownLevel = errors.New("unknown log level")
 
 func setupLogger(cfg *config.Config, outputToFile bool) error {
 	out := os.Stdout
@@ -136,13 +128,13 @@ func setupLogger(cfg *config.Config, outputToFile bool) error {
 		out = file
 	}
 
-	logLevel, ok := loggerLevels[cfg.LogLevel]
-	if !ok {
-		return ErrUnknownLevel
+	loglvl := slog.LevelInfo // TODO: change to error in future
+	if cfg.Debug {
+		loglvl = slog.LevelDebug
 	}
 
 	logger := slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{
-		Level: logLevel,
+		Level: loglvl,
 	}))
 	slog.SetDefault(logger)
 	return nil

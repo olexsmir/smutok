@@ -27,7 +27,7 @@ var (
 
 type Config struct {
 	DBPath      string
-	LogLevel    string `toml:"log_level"`
+	Debug       bool `toml:"debug"`
 	LogFilePath string
 	FreshRSS    struct {
 		Host     string `toml:"host"`
