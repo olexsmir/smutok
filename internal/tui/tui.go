@@ -23,17 +23,18 @@ const (
 )
 
 type Model struct {
-	ctx context.Context
-
+	ctx       context.Context
 	state     AppState
 	isQutting bool
+	isSyncing bool
 	showErr   bool
 	err       error
 
 	syncer Syncer
 	store  *store.Sqlite
 
-	articles []store.Article
+	articlesKind store.ArticleKind
+	articles     []store.Article
 
 	glamur   *glamour.TermRenderer
 	table    table.Model    // feeds, articles feed
@@ -43,30 +44,33 @@ type Model struct {
 func NewModel(
 	ctx context.Context,
 	syncer Syncer,
-	store *store.Sqlite,
+	sqlite *store.Sqlite,
 ) *Model {
 	tbl := table.New(table.WithFocused(true))
 	vp := viewport.New(0, 0)
 
 	return &Model{
-		ctx:       ctx,
-		syncer:    syncer,
-		store:     store,
-		glamur:    &glamour.TermRenderer{},
-		table:     tbl,
-		viewport:  vp,
-		state:     ArticlesView,
-		isQutting: false,
-		showErr:   false,
-		err:       nil,
-		articles:  nil,
+		ctx:          ctx,
+		syncer:       syncer,
+		store:        sqlite,
+		glamur:       &glamour.TermRenderer{},
+		table:        tbl,
+		viewport:     vp,
+		state:        ArticlesView,
+		articlesKind: store.ArticleUnread,
+		isQutting:    false,
+		showErr:      false,
+		err:          nil,
+		articles:     nil,
+		isSyncing:    false,
 	}
 }
 
 func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		tea.SetWindowTitle("smutok"),
-		m.fetchArticles(store.ArticleAll),
+		m.fetchArticles(m.articlesKind),
+		m.triggerSync(),
 	)
 }
 
@@ -90,6 +94,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setupTableWithArticles()
 		return m, nil
 
+	case triggerSync:
+		m.isSyncing = true
+		return m, m.triggerSync()
+
+	case finishedSync:
+		m.isSyncing = false
+		return m, m.fetchArticles(m.articlesKind)
+
 	case tea.KeyMsg:
 		// page specific keys
 		switch m.state {
@@ -104,6 +116,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q":
 			m.isQutting = true
 			return m, tea.Quit
+		case "s":
+			return m, m.triggerSync()
 		}
 	}
 	return m, cmd

@@ -20,6 +20,20 @@ func (m *Model) fetchArticles(kind store.ArticleKind) tea.Cmd {
 	}
 }
 
+type triggerSync struct{}
+
+func (m *Model) triggerSync() tea.Cmd {
+	return func() tea.Msg { return m.startSync() }
+}
+
+type finishedSync struct{}
+
+func (m *Model) startSync() tea.Cmd {
+	return func() tea.Msg {
+		return ""
+	}
+}
+
 func (m *Model) setupTableWithArticles() {
 	// clean up previous state
 	m.table.SetRows([]table.Row{})
