@@ -64,6 +64,23 @@ const (
 	ArticleAll
 )
 
+func (s *Sqlite) GetArticleByID(ctx context.Context, id string) (Article, error) {
+	query := `--sql
+	select a.id, a.title, a.href, a.content, a.author, s.is_read, s.is_starred, a.feed_id, f.title feed_name, a.published_at
+	from articles a
+	join article_statuses s on a.id = s.article_id
+	join feeds f on f.id = a.feed_id
+	where a.id = ?`
+
+	var a Article
+	if err := s.db.QueryRowContext(ctx, query, id).
+		Scan(&a.ID, &a.Title, &a.Href, &a.Content, &a.Author, &a.IsRead, &a.IsStarred, &a.FeedID, &a.FeedTitle, &a.PublishedAt); err != nil {
+		return a, err
+	}
+
+	return a, nil
+}
+
 type Article struct {
 	ID          string
 	Title       string

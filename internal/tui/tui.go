@@ -35,6 +35,7 @@ type Model struct {
 
 	articlesKind store.ArticleKind
 	articles     []store.Article
+	contents     string
 
 	glamur   *glamour.TermRenderer
 	table    table.Model    // feeds, articles feed
@@ -46,21 +47,24 @@ func NewModel(
 	syncer Syncer,
 	sqlite *store.Sqlite,
 ) *Model {
+	var err error
 	tbl := table.New(table.WithFocused(true))
 	vp := viewport.New(0, 0)
+	g, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle())
 
 	return &Model{
 		ctx:          ctx,
+		err:          err,
 		syncer:       syncer,
 		store:        sqlite,
-		glamur:       &glamour.TermRenderer{},
+		glamur:       g,
 		table:        tbl,
 		viewport:     vp,
 		state:        ArticlesView,
 		articlesKind: store.ArticleUnread,
 		isQutting:    false,
 		showErr:      false,
-		err:          nil,
 		articles:     nil,
 		isSyncing:    false,
 	}
@@ -107,6 +111,29 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.state {
 		case ArticlesView, FeedsView:
 			m.table, cmd = m.table.Update(msg)
+			switch msg.String() {
+			case "enter":
+				articleID := m.articles[m.table.Cursor()].ID
+				article, err := m.store.GetArticleByID(m.ctx, articleID)
+				if err != nil {
+					return m, sendErr(err)
+				}
+
+				content, err := htmlToMarkdown.ConvertString(article.Content)
+				if err != nil {
+					return m, sendErr(err)
+				}
+
+				cont, err := m.glamur.Render(content)
+				if err != nil {
+					return m, sendErr(err)
+				}
+
+				m.state = ReadingView
+				m.viewport.SetContent(cont)
+				return m, nil
+			}
+
 		case ReadingView:
 			m.viewport, cmd = m.viewport.Update(msg)
 		}
